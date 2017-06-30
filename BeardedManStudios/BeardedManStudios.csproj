@@ -107,6 +107,7 @@
     <Compile Include="Source\Forge\Networking\UDPServer.cs" />
     <Compile Include="Source\Forge\Networking\Websockets.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Source\PseudoRandom.cs" />
     <Compile Include="Source\SimpleJSON.cs" />
     <Compile Include="Source\Threading\IThreadRunner.cs" />
     <Compile Include="Source\Threading\Task.cs" />

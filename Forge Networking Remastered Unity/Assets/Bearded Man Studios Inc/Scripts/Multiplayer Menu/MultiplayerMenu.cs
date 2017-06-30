@@ -1,6 +1,5 @@
 ﻿using BeardedManStudios.Forge.Networking;
 using BeardedManStudios.Forge.Networking.Unity;
-using BeardedManStudios.Forge.Networking.Lobby;
 using BeardedManStudios.SimpleJSON;
 using System.Collections.Generic;
 using UnityEngine;
@@ -33,6 +32,8 @@ public class MultiplayerMenu : MonoBehaviour
 	public bool getLocalNetworkConnections = false;
 
 	public bool useTCP = false;
+
+	public string masterServerSignature;
 
 	private void Start()
 	{
@@ -110,7 +111,7 @@ public class MultiplayerMenu : MonoBehaviour
 
 		if (mgr == null && networkManager == null)
 			throw new System.Exception("A network manager was not provided, this is required for the tons of fancy stuff");
-		
+
 		mgr = Instantiate(networkManager).GetComponent<NetworkManager>();
 
 		mgr.MatchmakingServersFromMasterServer(masterServerHost, masterServerPort, myElo, (response) =>
@@ -195,10 +196,13 @@ public class MultiplayerMenu : MonoBehaviour
 			string mode = "Teams";
 			string comment = "Demo comment...";
 
+			if (string.IsNullOrEmpty(masterServerSignature))
+				throw new System.Exception("A master server signature file is required for the master server, please run the master server to generate this file");
+
 			masterServerData = mgr.MasterServerRegisterData(networker, serverId, serverName, type, mode, comment, useElo, eloRequired);
 		}
 
-		mgr.Initialize(networker, masterServerHost, masterServerPort, masterServerData);
+		mgr.Initialize(networker, masterServerHost, masterServerPort, masterServerData, masterServerSignature);
 
 		if (useInlineChat && networker.IsServer)
 			SceneManager.sceneLoaded += CreateInlineChat;

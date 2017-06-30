@@ -22,9 +22,15 @@ namespace BeardedManStudios.Forge.Networking.Unity
 		public Dictionary<int, INetworkBehavior> pendingObjects = new Dictionary<int, INetworkBehavior>();
 		public Dictionary<int, NetworkObject> pendingNetworkObjects = new Dictionary<int, NetworkObject>();
 
+		private string _masterServerHost;
+		private ushort _masterServerPort;
+		public TCPMasterClient masterServerClient { get; private set; }
+
 		private List<int> loadedScenes = new List<int>();
 
 		public bool IsServer { get { return Networker.IsServer; } }
+
+		private PseudoRandom masterServerSig;
 
 		/// <summary>
 		/// Used to enable or disable the automatic switching for clients
@@ -64,10 +70,12 @@ namespace BeardedManStudios.Forge.Networking.Unity
 				SceneManager.sceneLoaded -= OnLevelFinishedLoading;
 		}
 
-		public void Initialize(NetWorker networker, string masterServerHost = "", ushort masterServerPort = 15940, JSONNode masterServerRegisterData = null)
+		public void Initialize(NetWorker networker, string masterServerHost = "", ushort masterServerPort = 15940, JSONNode masterServerRegisterData = null, string masterServerSignature = "")
 		{
 			Networker = networker;
 			Networker.binaryMessageReceived += ReadBinary;
+			Networker.disconnected += () => { if (masterServerClient != null) masterServerClient.Disconnect(false); };
+			SetupObjectCreatedEvent();
 
 			UnityObjectMapper.Instance.UseAsDefault();
 			NetworkObject.Factory = new NetworkObjectFactory();
@@ -75,7 +83,18 @@ namespace BeardedManStudios.Forge.Networking.Unity
 			if (Networker is IServer)
 			{
 				if (!string.IsNullOrEmpty(masterServerHost))
-					RegisterOnMasterServer(networker.Port, networker.MaxConnections, masterServerHost, masterServerPort, masterServerRegisterData);
+				{
+					_masterServerHost = masterServerHost;
+					_masterServerPort = masterServerPort;
+
+					int sigVal;
+					if (!int.TryParse(masterServerSignature, out sigVal))
+						throw new System.Exception("The signature for the master server is required to be numeric");
+
+					masterServerSig = new PseudoRandom(sigVal);
+
+					RegisterOnMasterServer(masterServerRegisterData);
+				}
 
 				Networker.playerAccepted += PlayerAcceptedSceneSetup;
 
@@ -223,17 +242,80 @@ namespace BeardedManStudios.Forge.Networking.Unity
 			return sendData;
 		}
 
-		private void RegisterOnMasterServer(ushort port, int maxPlayers, string masterServerHost, ushort masterServerPort, JSONNode masterServerData)
+		private void AddMasterServerSig(JSONNode masterServerData)
 		{
+			masterServerData.Add("sig", new JSONData(masterServerSig.Next()));
+			Logging.BMSLog.Log(masterServerData["sig"]);
+		}
+
+		private void RegisterOnMasterServer(JSONNode masterServerData)
+		{
+			AddMasterServerSig(masterServerData["register"]);
+
+			// The Master Server communicates over TCP
+			masterServerClient = new TCPMasterClient();
+
+			// Once this client has been accepted by the master server it should send it's get request
+			masterServerClient.serverAccepted += () =>
+			{
+				try
+				{
+					Text temp = Text.CreateFromString(masterServerClient.Time.Timestep, masterServerData.ToString(), true, Receivers.Server, MessageGroupIds.MASTER_SERVER_REGISTER, true);
+
+					//Debug.Log(temp.GetData().Length);
+					// Send the request to the server
+					masterServerClient.Send(temp);
+				}
+				catch
+				{
+					// If anything fails, then this client needs to be disconnected
+					masterServerClient.Disconnect(true);
+					masterServerClient = null;
+				}
+			};
+
+			masterServerClient.Connect(_masterServerHost, _masterServerPort);
+
+			Networker.disconnected += () =>
+			{
+				masterServerClient.Disconnect(false);
+				MasterServerNetworker = null;
+			};
+
+			MasterServerNetworker = masterServerClient;
+		}
+
+		public void UpdateMasterServerListing(NetWorker server, string comment = null, string gameType = null, string mode = null)
+		{
+			JSONNode sendData = JSONNode.Parse("{}");
+			JSONClass registerData = new JSONClass();
+			registerData.Add("playerCount", new JSONData(server.MaxConnections));
+			registerData.Add("comment", comment);
+			registerData.Add("type", gameType);
+			registerData.Add("mode", mode);
+			registerData.Add("port", new JSONData(server.Port));
+			AddMasterServerSig(registerData);
+			sendData.Add("update", registerData);
+
+			UpdateMasterServerListing(sendData);
+		}
+
+		private void UpdateMasterServerListing(JSONNode masterServerData)
+		{
+			if (string.IsNullOrEmpty(_masterServerHost))
+			{
+				throw new System.Exception("This server is not registered on a master server, please ensure that you are passing a master server host and port into the initialize");
+			}
+
 			// The Master Server communicates over TCP
 			TCPMasterClient client = new TCPMasterClient();
 
-			// Once this client has been accepted by the master server it should send it's get request
+			// Once this client has been accepted by the master server it should send it's update request
 			client.serverAccepted += () =>
 			{
 				try
 				{
-					Frame.Text temp = Frame.Text.CreateFromString(client.Time.Timestep, masterServerData.ToString(), true, Receivers.Server, MessageGroupIds.MASTER_SERVER_REGISTER, true);
+					Text temp = Text.CreateFromString(client.Time.Timestep, masterServerData.ToString(), true, Receivers.Server, MessageGroupIds.MASTER_SERVER_UPDATE, true);
 
 					//Debug.Log(temp.GetData().Length);
 					// Send the request to the server
@@ -267,6 +349,9 @@ namespace BeardedManStudios.Forge.Networking.Unity
 			if (Networker != null)
 				Networker.Disconnect(false);
 
+			if (masterServerClient != null)
+				masterServerClient.Disconnect(false);
+
 			NetWorker.EndSession();
 
 			NetworkObject.ClearNetworkObjects(Networker);
@@ -281,10 +366,7 @@ namespace BeardedManStudios.Forge.Networking.Unity
 
 		private void OnApplicationQuit()
 		{
-			if (Networker != null)
-				Networker.Disconnect(false);
-
-			NetWorker.EndSession();
+			Disconnect();
 		}
 
 		private void FixedUpdate()

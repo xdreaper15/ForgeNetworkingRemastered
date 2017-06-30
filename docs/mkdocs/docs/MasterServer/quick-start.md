@@ -21,15 +21,19 @@ So in order for your MasterServer to be effective, you will need to allow the pr
 ## Using the Master Server
 So now that we have the master server up and running on our machine, it is time to give it a test and see what all is needed to use it. Lets begin by making sure that everything is working properly by running the built in testing method for Master Servers that come with Forge Networking.
 
+### Master Server Signature File
+As you may have noticed, when you run the master server for the first time it will tell you that it could not locate the signature file. After this it will generate the signature file which will contian a number for your master server. This number is a very simple safe-guard to prevent people from registering a bunch of servers onto your master server for other games. It will print out the number in the console as well as tell you where the sig file has been created. Copy this number as you will be providing it into your game code. _Note that you can copy the file and have your game load the file instead of coding it into your game, or you can provide it by any other means, it is just a string after all_.
+
 1. Open your project with Forge Netwroking
 2. Open the demo Multiplayer Menu scene
 3. Make sure your build settings have a scene after the Multiplayer Menu scene in it
 4. Locate the **Canvas** game object in the hierarchy and select it
-5. Locate the **Master Server Host** and **Master Server Port** in the Inspector
-![default-master-server-unity](images/default-master-server-unity.png)
+5. Locate the **Master Server Host**, **Master Server Port**, and **Master Server Signature** in the Inspector
+![default-master-server-unity](/images/default-master-server-unity.png)
 6. Input the local or static IP address of the machine your Master Server is running on
 7. Input **15940** as the port number for the Master Server
-8. Click the play button in Unity
-9. Click this **Host** button to start a game server
+8. Input the generated signature number from the master server signature file
+9. Click the play button in Unity
+10. Click this **Host** button to start a game server
 
 If you look at the Master Server command/terminal you should notice that a message appears with your game servers IP address and port number saying that it has been registered. At this point any clients can now connect to your Master Server and get the host listings. If the message did not appear then you've probably not setup the firewall settings correctly on either your machine or your router/network.
