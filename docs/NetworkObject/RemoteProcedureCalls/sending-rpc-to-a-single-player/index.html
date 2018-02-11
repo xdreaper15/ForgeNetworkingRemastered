@@ -576,7 +576,7 @@
                 <h1 id="sending-rpc-to-a-single-player">Sending RPC to a Single Player</h1>
 <p>During your development process you may find that you have to send an RPC to a single player and nobody else. This is especially useful to target players that are just connecting to the server to send them needed data that is not buffered already.</p>
 <h3 id="general-example">General Example</h3>
-<pre><code class="csharp">// targetPlayer is a NetworkingPlayer refence we got from the NetWorker::Players list or anywhere else
+<pre><code class="csharp">// targetPlayer is a NetworkingPlayer refence we got from the NetWorker.Players() list or anywhere else
 // args is an object array
 
 networkObject.SendRpc(targetPlayer, RPC_RPC_NAME, args);
